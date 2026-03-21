@@ -1,6 +1,113 @@
+import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Badge, Button, Card, CardContent, CardHeader, Input, Label, Select } from './ui.jsx'
 import { modeLabel, routePathText, sumDuration, sumPrice } from '../data/mockRoutes.js'
+import { useAuth } from '../hooks/useAuth.js'
+
+function AuthControls() {
+  const { user, loading, signIn, signOut, signUp } = useAuth()
+  const [open, setOpen] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function onLogin() {
+    try {
+      setBusy(true)
+      setError('')
+      await signIn(email.trim(), password)
+      setOpen(false)
+      setPassword('')
+    } catch (e) {
+      setError(e.message || 'Не удалось войти')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onRegister() {
+    try {
+      setBusy(true)
+      setError('')
+      await signUp(email.trim(), password)
+      setPassword('')
+      setError('Проверьте почту для подтверждения регистрации, если это требуется.')
+    } catch (e) {
+      setError(e.message || 'Не удалось зарегистрироваться')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function onLogout() {
+    try {
+      setBusy(true)
+      setError('')
+      await signOut()
+    } catch (e) {
+      setError(e.message || 'Не удалось выйти')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading) return <span className="text-xs text-white/80">Загрузка...</span>
+
+  if (user) {
+    return (
+      <div className="flex items-center gap-2">
+        <Badge className="max-w-44 truncate">{user.email}</Badge>
+        <Button variant="outline" onClick={onLogout} disabled={busy}>
+          Выйти
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <Button variant="outline" onClick={() => setOpen((v) => !v)} disabled={busy}>
+        Войти
+      </Button>
+      {open && (
+        <div className="absolute right-0 top-12 z-30 w-80 rounded-2xl border border-white/25 bg-white/10 p-4 backdrop-blur-md">
+          <div className="grid gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="auth-email">Email</Label>
+              <Input
+                id="auth-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="auth-password">Пароль</Label>
+              <Input
+                id="auth-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="********"
+              />
+            </div>
+            {error ? <div className="text-xs text-red-200">{error}</div> : null}
+            <div className="flex items-center gap-2">
+              <Button onClick={onLogin} disabled={busy || !email || !password}>
+                Войти
+              </Button>
+              <Button variant="outline" onClick={onRegister} disabled={busy || !email || !password}>
+                Регистрация
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function Header() {
   const linkBase =
@@ -23,6 +130,7 @@ export function Header() {
           >
             Favorites
           </NavLink>
+          <AuthControls />
         </nav>
       </div>
     </header>

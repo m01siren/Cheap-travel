@@ -13,6 +13,7 @@ export function RouteDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -61,12 +62,16 @@ export function RouteDetailsPage() {
   const path = routePathText(route.segments)
   const isFav = favorites.isFavorite(route.id)
 
-  function onSave() {
-    setSaving(true)
-    setTimeout(() => {
-      favorites.toggle(route.id)
+  async function onSave() {
+    try {
+      setSaving(true)
+      setSaveError('')
+      await favorites.toggle(route.id)
+    } catch (e) {
+      setSaveError(e.message || 'Не удалось сохранить маршрут')
+    } finally {
       setSaving(false)
-    }, 200)
+    }
   }
 
   return (
@@ -123,6 +128,7 @@ export function RouteDetailsPage() {
           Назад
         </Button>
       </div>
+      {saveError ? <div className="text-sm text-red-200">{saveError}</div> : null}
     </div>
   )
 }

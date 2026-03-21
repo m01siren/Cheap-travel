@@ -15,6 +15,14 @@ export function FavoritesPage() {
     let cancelled = false
 
     async function loadFavorites() {
+      if (favorites.authLoading) return
+      if (!favorites.user) {
+        setLoading(false)
+        setError('')
+        setRoutes([])
+        return
+      }
+
       try {
         setLoading(true)
         setError('')
@@ -31,17 +39,21 @@ export function FavoritesPage() {
     return () => {
       cancelled = true
     }
-  }, [favorites.ids])
+  }, [favorites.authLoading, favorites.ids, favorites.user])
 
   return (
     <div className="grid gap-6">
       <div className="grid gap-2">
         <h1 className="text-2xl font-semibold tracking-tight text-white">Избранное</h1>
-        <p className="text-sm text-white/80">Список хранится в localStorage.</p>
+        <p className="text-sm text-white/80">Список хранится в вашем аккаунте Supabase.</p>
       </div>
 
-      {loading ? (
+      {favorites.authLoading || loading || favorites.loading ? (
         <div className="text-sm text-white/80">Загрузка...</div>
+      ) : !favorites.user ? (
+        <div className="text-sm text-white/80">Войдите в аккаунт, чтобы увидеть избранные маршруты.</div>
+      ) : favorites.error ? (
+        <div className="text-sm text-red-200">{favorites.error}</div>
       ) : error ? (
         <div className="text-sm text-red-200">{error}</div>
       ) : routes.length === 0 ? (
@@ -63,7 +75,16 @@ export function FavoritesPage() {
               key={r.id}
               route={r}
               actions={
-                <Button variant="outline" onClick={() => favorites.remove(r.id)}>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await favorites.remove(r.id)
+                    } catch (e) {
+                      setError(e.message || 'Не удалось удалить из избранного')
+                    }
+                  }}
+                >
                   Удалить
                 </Button>
               }
