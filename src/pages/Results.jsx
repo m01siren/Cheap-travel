@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Filters, RouteCard, SearchForm } from '../components/common.jsx'
 import { Card, CardContent, CardHeader } from '../components/ui.jsx'
-import { mockRoutes, routePathText, sumDuration, sumPrice } from '../data/mockRoutes.js'
+import { routePathText, sumDuration, sumPrice } from '../data/mockRoutes.js'
+import { fetchRoutes } from '../data/routesApi.js'
 
 function includesText(haystack, needle) {
   const h = String(haystack || '').toLowerCase()
@@ -25,6 +26,8 @@ export function ResultsPage() {
   )
 
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [allRoutes, setAllRoutes] = useState([])
 
   // Локальные фильтры (это именно UI-фильтры на странице).
   const [filters, setFilters] = useState({
@@ -34,13 +37,29 @@ export function ResultsPage() {
   })
 
   useEffect(() => {
-    setLoading(true)
-    const t = setTimeout(() => setLoading(false), 250)
-    return () => clearTimeout(t)
-  }, [query.from, query.to, query.dateFrom, query.dateTo, query.transport])
+    let cancelled = false
+
+    async function loadRoutes() {
+      try {
+        setLoading(true)
+        setError('')
+        const data = await fetchRoutes()
+        if (!cancelled) setAllRoutes(data)
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'Не удалось загрузить данные')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadRoutes()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const routes = useMemo(() => {
-    const bySearch = mockRoutes.filter((r) => {
+    const bySearch = allRoutes.filter((r) => {
       const path = routePathText(r.segments)
       const matchFrom = includesText(path, query.from)
       const matchTo = includesText(path, query.to)
@@ -67,7 +86,7 @@ export function ResultsPage() {
     // Сортировка по цене (по умолчанию).
     filtered.sort((a, b) => sumPrice(a.segments) - sumPrice(b.segments))
     return filtered
-  }, [filters.maxDuration, filters.maxPrice, filters.mode, query.from, query.to, query.transport])
+  }, [allRoutes, filters.maxDuration, filters.maxPrice, filters.mode, query.from, query.to, query.transport])
 
   return (
     <div className="grid gap-6">
@@ -91,7 +110,9 @@ export function ResultsPage() {
       <Filters value={filters} onChange={setFilters} />
 
       {loading ? (
-        <div className="text-sm text-white/80">Loading…</div>
+        <div className="text-sm text-white/80">Загрузка...</div>
+      ) : error ? (
+        <div className="text-sm text-red-200">{error}</div>
       ) : routes.length === 0 ? (
         <div className="text-sm text-white/80">Ничего не найдено</div>
       ) : (

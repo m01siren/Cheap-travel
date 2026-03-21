@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Badge, Button, Card, CardContent, CardHeader, Input, Label, Select } from './ui.jsx'
 import { modeLabel, routePathText, sumDuration, sumPrice } from '../data/mockRoutes.js'
@@ -89,7 +88,6 @@ export function SearchForm({ initialValues }) {
 
       <div className="flex items-center gap-2">
         <Button type="submit">Найти</Button>
-        <span className="text-xs text-white/70">Пока данные моковые — логика готова под API.</span>
       </div>
     </form>
   )
@@ -184,42 +182,4 @@ export function RouteCard({ route, showActions = true, actions }) {
   )
 }
 
-const STORAGE_KEY = 'tce:favorites'
-
-function safeParse(json, fallback) {
-  try {
-    const parsed = JSON.parse(json)
-    return parsed ?? fallback
-  } catch {
-    return fallback
-  }
-}
-
-export function useFavorites() {
-  const [ids, setIds] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    const parsed = safeParse(raw, [])
-    return Array.isArray(parsed) ? parsed : []
-  })
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids))
-  }, [ids])
-
-  const set = useMemo(() => new Set(ids), [ids])
-
-  function isFavorite(id) {
-    return set.has(id)
-  }
-
-  function remove(id) {
-    setIds((prev) => prev.filter((x) => x !== id))
-  }
-
-  function toggle(id) {
-    setIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
-  }
-
-  return { ids, isFavorite, remove, toggle }
-}
 

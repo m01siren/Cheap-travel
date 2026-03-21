@@ -1,13 +1,37 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { RouteCard, useFavorites } from '../components/common.jsx'
+import { RouteCard } from '../components/common.jsx'
+import { useFavorites } from '../hooks/useFavorites.js'
 import { Button } from '../components/ui.jsx'
-import { mockRoutes } from '../data/mockRoutes.js'
+import { fetchRoutesByIds } from '../data/routesApi.js'
 
 export function FavoritesPage() {
   const favorites = useFavorites()
-  const routes = favorites.ids
-    .map((id) => mockRoutes.find((r) => r.id === id))
-    .filter(Boolean)
+  const [routes, setRoutes] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadFavorites() {
+      try {
+        setLoading(true)
+        setError('')
+        const data = await fetchRoutesByIds(favorites.ids)
+        if (!cancelled) setRoutes(data)
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'Не удалось загрузить избранные маршруты')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadFavorites()
+    return () => {
+      cancelled = true
+    }
+  }, [favorites.ids])
 
   return (
     <div className="grid gap-6">
@@ -16,7 +40,11 @@ export function FavoritesPage() {
         <p className="text-sm text-white/80">Список хранится в localStorage.</p>
       </div>
 
-      {routes.length === 0 ? (
+      {loading ? (
+        <div className="text-sm text-white/80">Загрузка...</div>
+      ) : error ? (
+        <div className="text-sm text-red-200">{error}</div>
+      ) : routes.length === 0 ? (
         <div className="grid gap-3 rounded-2xl border border-white/25 bg-white/10 p-4 backdrop-blur-md">
           <div className="text-sm text-white/85">
             Пока пусто — сохраните маршрут со страницы деталей.

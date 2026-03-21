@@ -1,16 +1,48 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, CardContent, CardHeader, Badge } from '../components/ui.jsx'
-import { useFavorites } from '../components/common.jsx'
-import { mockRoutes, modeLabel, routePathText, sumDuration, sumPrice } from '../data/mockRoutes.js'
+import { useFavorites } from '../hooks/useFavorites.js'
+import { modeLabel, routePathText, sumDuration, sumPrice } from '../data/mockRoutes.js'
+import { fetchRouteById } from '../data/routesApi.js'
 
 export function RouteDetailsPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const favorites = useFavorites()
-  const [loading, setLoading] = useState(false)
+  const [route, setRoute] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const route = useMemo(() => mockRoutes.find((r) => r.id === id) || null, [id])
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadRoute() {
+      try {
+        setLoading(true)
+        setError('')
+        const data = await fetchRouteById(id)
+        if (!cancelled) setRoute(data)
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'Не удалось загрузить маршрут')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadRoute()
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  if (loading) {
+    return <div className="text-sm text-white/80">Загрузка...</div>
+  }
+
+  if (error) {
+    return <div className="text-sm text-red-200">{error}</div>
+  }
 
   if (!route) {
     return (
@@ -30,11 +62,10 @@ export function RouteDetailsPage() {
   const isFav = favorites.isFavorite(route.id)
 
   function onSave() {
-    // Имитация небольшого "запроса", чтобы показать Loading-состояние.
-    setLoading(true)
+    setSaving(true)
     setTimeout(() => {
       favorites.toggle(route.id)
-      setLoading(false)
+      setSaving(false)
     }, 200)
   }
 
@@ -85,8 +116,8 @@ export function RouteDetailsPage() {
       </Card>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={onSave} disabled={loading}>
-          {loading ? 'Loading…' : isFav ? 'Убрать из избранного' : 'Сохранить'}
+        <Button onClick={onSave} disabled={saving}>
+          {saving ? 'Загрузка...' : isFav ? 'Убрать из избранного' : 'Сохранить'}
         </Button>
         <Button variant="outline" onClick={() => navigate(-1)}>
           Назад
