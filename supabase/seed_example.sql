@@ -32,4 +32,16 @@ insert into public.routes (
   '[
     {"from":"Санкт-Петербург","to":"Хельсинки","mode":"bus","durationMin":480,"price":2900}
   ]'::jsonb
+),
+(
+  'Москва — Гюмри',
+  'Москва',
+  'Гюмри',
+  7400,
+  'RUB',
+  'published',
+  '[
+    {"from":"Москва","to":"Минеральные Воды","mode":"plane","durationMin":155,"price":4300},
+    {"from":"Минеральные Воды","to":"Гюмри","mode":"bus","durationMin":300,"price":3100}
+  ]'::jsonb
 );

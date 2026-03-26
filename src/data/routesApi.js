@@ -1,4 +1,6 @@
 import { supabase } from '../lib/supabase.js'
+import { fetchExternalRoutes } from './externalRoutesApi.js'
+import { mergeAndRankRoutes, scoreRoute } from './routesAggregation.js'
 
 function parseSegmentsRaw(rawSegments) {
   if (rawSegments == null) return []
@@ -48,6 +50,7 @@ function mapRoute(row) {
     ownerId: row.owner_id ?? null,
     currency: row.currency ?? 'RUB',
     status: row.status ?? 'published',
+    sourceType: 'db',
   }
 }
 
@@ -59,7 +62,10 @@ function assertNoError(error, fallbackMessage) {
 export async function fetchRoutes() {
   const { data, error } = await supabase.from('routes').select('*').order('price', { ascending: true })
   assertNoError(error, 'Не удалось загрузить маршруты')
-  return (data || []).map(mapRoute)
+  return (data || []).map((r) => {
+    const route = mapRoute(r)
+    return { ...route, score: scoreRoute(route) }
+  })
 }
 
 export async function fetchRouteById(id) {
@@ -73,4 +79,12 @@ export async function fetchRoutesByIds(ids) {
   const { data, error } = await supabase.from('routes').select('*').in('id', ids)
   assertNoError(error, 'Не удалось загрузить избранные маршруты')
   return (data || []).map(mapRoute)
+}
+
+export async function fetchRoutesLive(query) {
+  return fetchExternalRoutes(query)
+}
+
+export function combineRoutes(dbRoutes, liveRoutes) {
+  return mergeAndRankRoutes(dbRoutes, liveRoutes)
 }

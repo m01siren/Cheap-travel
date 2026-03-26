@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { Filters, RouteCard, SearchForm } from '../components/common.jsx'
 import { Card, CardContent, CardHeader } from '../components/ui.jsx'
 import { routePathText, sumDuration, sumPrice } from '../utils/routeUtils.js'
-import { fetchRoutes } from '../data/routesApi.js'
+import { combineRoutes, fetchRoutes, fetchRoutesLive } from '../data/routesApi.js'
+import { hasExternalRoutesSource } from '../data/externalRoutesApi.js'
 import { logSearchHistory } from '../data/socialApi.js'
 import { useAuth } from '../hooks/useAuth.js'
 
@@ -30,7 +31,9 @@ export function ResultsPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [warning, setWarning] = useState('')
   const [allRoutes, setAllRoutes] = useState([])
+  const [fallbackInfo, setFallbackInfo] = useState('')
 
   // Локальные фильтры (это именно UI-фильтры на странице).
   const [filters, setFilters] = useState({
@@ -46,8 +49,25 @@ export function ResultsPage() {
       try {
         setLoading(true)
         setError('')
-        const data = await fetchRoutes()
-        if (!cancelled) setAllRoutes(data)
+        setWarning('')
+        setFallbackInfo('')
+        const dbRoutes = await fetchRoutes()
+        if (!cancelled) setAllRoutes(dbRoutes)
+
+        // Combined strategy: быстрый показ из БД + живая догрузка.
+        try {
+          const liveRoutes = await fetchRoutesLive(query)
+          if (!cancelled && liveRoutes.length) {
+            setAllRoutes((prev) => combineRoutes(prev, liveRoutes))
+          }
+          if (!cancelled && !liveRoutes.length && !hasExternalRoutesSource) {
+            setWarning('Внешний источник маршрутов не подключён. Показаны только маршруты из вашей базы.')
+          }
+        } catch {
+          if (!cancelled) {
+            setWarning('Показаны локальные маршруты. Внешний источник временно недоступен.')
+          }
+        }
       } catch (e) {
         if (!cancelled) setError(e.message || 'Не удалось загрузить данные')
       } finally {
@@ -59,7 +79,7 @@ export function ResultsPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [query])
 
   useEffect(() => {
     if (authLoading || !user) return
@@ -75,7 +95,7 @@ export function ResultsPage() {
     }).catch(() => {})
   }, [authLoading, user, query.from, query.to, query.dateFrom, query.dateTo, query.transport])
 
-  const routes = useMemo(() => {
+  const routesData = useMemo(() => {
     const bySearch = allRoutes.filter((r) => {
       const path = routePathText(r.segments)
       const matchFrom = includesText(path, query.from)
@@ -85,25 +105,66 @@ export function ResultsPage() {
       return matchFrom && matchTo && matchTransport
     })
 
+    const byOriginOnly = allRoutes.filter((r) => {
+      const path = routePathText(r.segments)
+      const matchFrom = includesText(path, query.from)
+      const matchTransport =
+        query.transport === 'all' ? true : r.segments.some((s) => s.mode === query.transport)
+      return matchFrom && matchTransport
+    })
+
     const maxPrice = filters.maxPrice ? Number(filters.maxPrice) : null
     const maxDuration = filters.maxDuration ? Number(filters.maxDuration) : null
     const mode = filters.mode
 
-    const filtered = bySearch.filter((r) => {
-      const price = sumPrice(r.segments)
-      const duration = sumDuration(r.segments)
+    const applyUiFilters = (list) =>
+      list.filter((r) => {
+        const price = sumPrice(r.segments)
+        const duration = sumDuration(r.segments)
 
-      if (maxPrice != null && Number.isFinite(maxPrice) && price > maxPrice) return false
-      if (maxDuration != null && Number.isFinite(maxDuration) && duration > maxDuration) return false
+        if (maxPrice != null && Number.isFinite(maxPrice) && price > maxPrice) return false
+        if (maxDuration != null && Number.isFinite(maxDuration) && duration > maxDuration) return false
 
-      if (mode !== 'all' && !r.segments.some((s) => s.mode === mode)) return false
-      return true
-    })
+        if (mode !== 'all' && !r.segments.some((s) => s.mode === mode)) return false
+        return true
+      })
 
-    // Сортировка по цене (по умолчанию).
-    filtered.sort((a, b) => sumPrice(a.segments) - sumPrice(b.segments))
-    return filtered
+    const filteredExact = applyUiFilters(bySearch)
+    const filteredFallback = applyUiFilters(byOriginOnly)
+
+    const sortRoutes = (list) => {
+      const sorted = [...list]
+      sorted.sort((a, b) => {
+        if (Number.isFinite(a.score) || Number.isFinite(b.score)) {
+          return (a.score ?? Number.MAX_SAFE_INTEGER) - (b.score ?? Number.MAX_SAFE_INTEGER)
+        }
+        return sumPrice(a.segments) - sumPrice(b.segments)
+      })
+      return sorted
+    }
+
+    if (filteredExact.length > 0) {
+      return { routes: sortRoutes(filteredExact), isFallback: false }
+    }
+
+    if (query.from && filteredFallback.length > 0) {
+      return { routes: sortRoutes(filteredFallback), isFallback: true }
+    }
+
+    return { routes: [], isFallback: false }
   }, [allRoutes, filters.maxDuration, filters.maxPrice, filters.mode, query.from, query.to, query.transport])
+
+  useEffect(() => {
+    if (routesData.isFallback) {
+      setFallbackInfo(
+        `Точного маршрута "${query.from || '—'} → ${query.to || '—'}" не найдено. Показаны ближайшие варианты из "${query.from || 'вашего города'}".`,
+      )
+    } else {
+      setFallbackInfo('')
+    }
+  }, [query.from, query.to, routesData.isFallback])
+
+  const routes = routesData.routes
 
   return (
     <div className="grid gap-6">
@@ -125,6 +186,8 @@ export function ResultsPage() {
       </Card>
 
       <Filters value={filters} onChange={setFilters} />
+      {warning ? <div className="text-xs text-amber-200">{warning}</div> : null}
+      {fallbackInfo ? <div className="text-xs text-white/80">{fallbackInfo}</div> : null}
 
       {loading ? (
         <div className="text-sm text-white/80">Загрузка...</div>

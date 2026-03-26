@@ -290,6 +290,7 @@ export function RouteCard({ route, showActions = true, actions }) {
           </div>
           <Badge>{Math.round(duration / 60)} ч</Badge>
           <Badge>{transfers === 0 ? 'Без пересадок' : `Пересадки: ${transfers}`}</Badge>
+          {Number.isFinite(route.score) ? <Badge>Выгодный</Badge> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {modes.map((m) => (

@@ -30,6 +30,15 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+-- Миграция для старых БД, где profiles уже создана без role.
+alter table public.profiles add column if not exists role text;
+update public.profiles set role = 'user' where role is null;
+alter table public.profiles alter column role set default 'user';
+alter table public.profiles alter column role set not null;
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles
+  add constraint profiles_role_check check (role in ('user', 'admin'));
+
 drop trigger if exists trg_profiles_updated_at on public.profiles;
 create trigger trg_profiles_updated_at
 before update on public.profiles
@@ -101,6 +110,41 @@ create table if not exists public.routes (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Миграция для старых БД, где routes уже создана без части колонок.
+alter table public.routes add column if not exists owner_id uuid references public.profiles(id) on delete set null;
+alter table public.routes add column if not exists title text;
+alter table public.routes add column if not exists origin_city text;
+alter table public.routes add column if not exists destination_city text;
+alter table public.routes add column if not exists departure_date date;
+alter table public.routes add column if not exists return_date date;
+alter table public.routes add column if not exists price numeric(10,2);
+alter table public.routes add column if not exists currency text;
+alter table public.routes add column if not exists provider text;
+alter table public.routes add column if not exists booking_url text;
+alter table public.routes add column if not exists description text;
+alter table public.routes add column if not exists status text;
+alter table public.routes add column if not exists segments jsonb;
+alter table public.routes add column if not exists created_at timestamptz;
+alter table public.routes add column if not exists updated_at timestamptz;
+
+update public.routes set title = 'Маршрут' where title is null;
+update public.routes set currency = 'RUB' where currency is null;
+update public.routes set status = 'published' where status is null;
+update public.routes set segments = '[]'::jsonb where segments is null;
+update public.routes set created_at = now() where created_at is null;
+update public.routes set updated_at = now() where updated_at is null;
+
+alter table public.routes alter column title set default 'Маршрут';
+alter table public.routes alter column currency set default 'RUB';
+alter table public.routes alter column status set default 'published';
+alter table public.routes alter column segments set default '[]'::jsonb;
+alter table public.routes alter column created_at set default now();
+alter table public.routes alter column updated_at set default now();
+
+alter table public.routes drop constraint if exists routes_status_check;
+alter table public.routes
+  add constraint routes_status_check check (status in ('draft', 'published', 'archived'));
 
 drop trigger if exists trg_routes_updated_at on public.routes;
 create trigger trg_routes_updated_at

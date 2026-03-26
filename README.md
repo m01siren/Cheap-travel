@@ -23,6 +23,8 @@
 ```env
 VITE_SUPABASE_URL=https://ВАШ_ПРОЕКТ.supabase.co
 VITE_SUPABASE_ANON_KEY=ваш_anon_ключ
+VITE_EXTERNAL_ROUTES_URL=https://open-data-provider.example/routes
+VITE_ENABLE_OSM_SOURCES=true
 ```
 
 ## Установка и запуск
@@ -58,6 +60,8 @@ npm run lint     # ESLint
 
 - История цен на проде заполняется отдельным процессом с **service key** (не с фронта).
 - Старый файл `supabase_favorites_rls.sql` удалён — всё объединено в **`supabase/schema.sql`**.
+- Комбинированный поиск маршрутов работает так: сначала данные из `routes` в Supabase, затем live-догрузка из `VITE_EXTERNAL_ROUTES_URL` (если задан URL).
+- Дополнительно подключены открытые источники OSM/OSRM (геокодирование + построение маршрутов) — работают даже без `VITE_EXTERNAL_ROUTES_URL`, если `VITE_ENABLE_OSM_SOURCES=true`.
 
 ## Роли и admin
 
@@ -85,3 +89,52 @@ npm run lint     # ESLint
   ```json
   { "user_id": "USER_UUID", "role": "admin" }
   ```
+
+## Edge Function: ingestion внешних маршрутов
+
+Файл: [`supabase/functions/ingest-routes/index.ts`](supabase/functions/ingest-routes/index.ts)
+
+Назначение:
+- подтянуть маршруты из open-source URL,
+- обновить/добавить маршруты в `routes`,
+- записать текущую цену в `price_history`.
+
+Необходимые env для функции:
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `EXTERNAL_ROUTES_URL`
+
+Пример запуска после деплоя:
+
+```bash
+curl -X POST "https://<PROJECT_REF>.functions.supabase.co/ingest-routes"
+```
+
+### Пункт 3 (обновлён): деплой `ingest-routes` пошагово
+
+Выполните из корня проекта:
+
+```bash
+# 1) Авторизация CLI
+npx supabase login
+
+# 2) Привязка к вашему проекту (Project Ref)
+npx supabase link --project-ref ixlwzdjmyydazkqeveav
+
+# 3) Установка secrets для функции
+npx supabase secrets set SUPABASE_URL=https://ixlwzdjmyydazkqeveav.supabase.co
+npx supabase secrets set EXTERNAL_ROUTES_URL=https://open-data-provider.example/routes
+npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY=ваш_service_role_key
+
+# 4) Деплой функции
+npx supabase functions deploy ingest-routes
+
+# 5) Ручной запуск (проверка)
+curl -X POST "https://ixlwzdjmyydazkqeveav.functions.supabase.co/ingest-routes"
+```
+
+Если хотите полностью без `curl`, можно вызвать через CLI:
+
+```bash
+npx supabase functions invoke ingest-routes
+```
