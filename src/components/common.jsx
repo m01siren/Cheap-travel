@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Badge, Button, Card, CardContent, CardHeader, Input, Label, Select } from './ui.jsx'
-import { modeLabel, routePathText, sumDuration, sumPrice } from '../data/mockRoutes.js'
+import { modeLabel, routePathText, sumDuration, sumPrice } from '../utils/routeUtils.js'
 import { useAuth } from '../hooks/useAuth.js'
 
 function AuthControls() {
-  const { user, loading, signIn, signOut, signUp } = useAuth()
+  const { user, loading, role, signIn, signOut, signUp } = useAuth()
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -16,7 +16,17 @@ function AuthControls() {
     try {
       setBusy(true)
       setError('')
-      await signIn(email.trim(), password)
+      const e = email.trim()
+      const p = password
+      if (!e.includes('@')) {
+        setError('Введите корректный email')
+        return
+      }
+      if (p.length < 6) {
+        setError('Пароль должен быть минимум 6 символов')
+        return
+      }
+      await signIn(e, p)
       setOpen(false)
       setPassword('')
     } catch (e) {
@@ -30,7 +40,17 @@ function AuthControls() {
     try {
       setBusy(true)
       setError('')
-      await signUp(email.trim(), password)
+      const e = email.trim()
+      const p = password
+      if (!e.includes('@')) {
+        setError('Введите корректный email')
+        return
+      }
+      if (p.length < 6) {
+        setError('Пароль должен быть минимум 6 символов')
+        return
+      }
+      await signUp(e, p)
       setPassword('')
       setError('Проверьте почту для подтверждения регистрации, если это требуется.')
     } catch (e) {
@@ -58,6 +78,7 @@ function AuthControls() {
     return (
       <div className="flex items-center gap-2">
         <Badge className="max-w-44 truncate">{user.email}</Badge>
+        <Badge>{role === 'admin' ? 'admin' : 'user'}</Badge>
         <Button variant="outline" onClick={onLogout} disabled={busy}>
           Выйти
         </Button>
@@ -255,6 +276,8 @@ export function RouteCard({ route, showActions = true, actions }) {
   const duration = sumDuration(route.segments)
   const transfers = Math.max(0, route.segments.length - 1)
   const path = routePathText(route.segments)
+  const currency = route.currency || 'RUB'
+  const priceSuffix = currency === 'RUB' ? '₽' : currency
 
   const modes = Array.from(new Set(route.segments.map((s) => s.mode)))
 
@@ -262,7 +285,9 @@ export function RouteCard({ route, showActions = true, actions }) {
     <Card>
       <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-base font-semibold text-white">{price.toLocaleString()} ₽</div>
+          <div className="text-base font-semibold text-white">
+            {price.toLocaleString()} {priceSuffix}
+          </div>
           <Badge>{Math.round(duration / 60)} ч</Badge>
           <Badge>{transfers === 0 ? 'Без пересадок' : `Пересадки: ${transfers}`}</Badge>
         </div>

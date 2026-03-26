@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Filters, RouteCard, SearchForm } from '../components/common.jsx'
 import { Card, CardContent, CardHeader } from '../components/ui.jsx'
-import { routePathText, sumDuration, sumPrice } from '../data/mockRoutes.js'
+import { routePathText, sumDuration, sumPrice } from '../utils/routeUtils.js'
 import { fetchRoutes } from '../data/routesApi.js'
+import { logSearchHistory } from '../data/socialApi.js'
+import { useAuth } from '../hooks/useAuth.js'
 
 function includesText(haystack, needle) {
   const h = String(haystack || '').toLowerCase()
@@ -13,6 +15,7 @@ function includesText(haystack, needle) {
 }
 
 export function ResultsPage() {
+  const { user, loading: authLoading } = useAuth()
   const [params] = useSearchParams()
   const query = useMemo(
     () => ({
@@ -57,6 +60,20 @@ export function ResultsPage() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (authLoading || !user) return
+    logSearchHistory({
+      userId: user.id,
+      originCity: query.from,
+      destinationCity: query.to,
+      departFrom: query.dateFrom || null,
+      departTo: query.dateTo || null,
+      transport: query.transport,
+      maxPrice: null,
+      filtersJson: {},
+    }).catch(() => {})
+  }, [authLoading, user, query.from, query.to, query.dateFrom, query.dateTo, query.transport])
 
   const routes = useMemo(() => {
     const bySearch = allRoutes.filter((r) => {

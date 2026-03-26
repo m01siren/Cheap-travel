@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase.js'
 export function useAuth() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [role, setRole] = useState(null)
+  const [roleLoading, setRoleLoading] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -27,6 +29,38 @@ export function useAuth() {
     }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadRole() {
+      if (!user?.id) {
+        setRole(null)
+        return
+      }
+
+      setRoleLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        if (error) throw error
+        if (!cancelled) setRole(data?.role ?? 'user')
+      } catch {
+        if (!cancelled) setRole('user')
+      } finally {
+        if (!cancelled) setRoleLoading(false)
+      }
+    }
+
+    loadRole()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
+
   async function signIn(email, password) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw new Error(error.message || 'Ошибка входа')
@@ -42,5 +76,5 @@ export function useAuth() {
     if (error) throw new Error(error.message || 'Ошибка выхода')
   }
 
-  return { user, loading, signIn, signUp, signOut }
+  return { user, loading, role, roleLoading, signIn, signUp, signOut }
 }

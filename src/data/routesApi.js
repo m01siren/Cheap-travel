@@ -1,8 +1,21 @@
 import { supabase } from '../lib/supabase.js'
 
+function parseSegmentsRaw(rawSegments) {
+  if (rawSegments == null) return []
+  if (typeof rawSegments === 'string') {
+    try {
+      const parsed = JSON.parse(rawSegments)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return Array.isArray(rawSegments) ? rawSegments : []
+}
+
 function normalizeSegments(rawSegments) {
-  if (!Array.isArray(rawSegments)) return []
-  return rawSegments
+  const arr = parseSegmentsRaw(rawSegments)
+  return arr
     .map((s) => ({
       from: String(s.from ?? ''),
       to: String(s.to ?? ''),
@@ -22,8 +35,8 @@ function mapRoute(row) {
           {
             from: String(row.origin_city ?? ''),
             to: String(row.destination_city ?? ''),
-            mode: String(row.transport_mode ?? 'bus'),
-            durationMin: Number(row.duration_min ?? 0) || 0,
+            mode: 'bus',
+            durationMin: 0,
             price: Number(row.price ?? 0) || 0,
           },
         ].filter((s) => s.from && s.to)
@@ -31,6 +44,10 @@ function mapRoute(row) {
   return {
     id: String(row.id),
     segments,
+    title: row.title ?? 'Маршрут',
+    ownerId: row.owner_id ?? null,
+    currency: row.currency ?? 'RUB',
+    status: row.status ?? 'published',
   }
 }
 
@@ -40,7 +57,7 @@ function assertNoError(error, fallbackMessage) {
 }
 
 export async function fetchRoutes() {
-  const { data, error } = await supabase.from('routes').select('*')
+  const { data, error } = await supabase.from('routes').select('*').order('price', { ascending: true })
   assertNoError(error, 'Не удалось загрузить маршруты')
   return (data || []).map(mapRoute)
 }
