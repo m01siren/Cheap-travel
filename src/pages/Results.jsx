@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Filters, RouteCard, SearchForm } from '../components/common.jsx'
-import { Card, CardContent, CardHeader } from '../components/ui.jsx'
+import { Button, Card, CardContent, CardHeader } from '../components/ui.jsx'
 import { routePathText, sumDuration, sumPrice } from '../utils/routeUtils.js'
 import { combineRoutes, fetchRoutes, fetchRoutesLive } from '../data/routesApi.js'
 import { hasExternalRoutesSource } from '../data/externalRoutesApi.js'
 import { logSearchHistory } from '../data/socialApi.js'
 import { useAuth } from '../hooks/useAuth.js'
+import { createBrowserSearchJob, getBrowserSearchResults, getBrowserSearchStatus } from '../data/browserSearchApi.js'
 
 function includesText(haystack, needle) {
   const h = String(haystack || '').toLowerCase()
@@ -34,6 +35,10 @@ export function ResultsPage() {
   const [warning, setWarning] = useState('')
   const [allRoutes, setAllRoutes] = useState([])
   const [fallbackInfo, setFallbackInfo] = useState('')
+  const [browserJobId, setBrowserJobId] = useState('')
+  const [browserStatus, setBrowserStatus] = useState('')
+  const [browserBusy, setBrowserBusy] = useState(false)
+  const [browserInfo, setBrowserInfo] = useState('')
 
   // Локальные фильтры (это именно UI-фильтры на странице).
   const [filters, setFilters] = useState({
@@ -166,6 +171,73 @@ export function ResultsPage() {
 
   const routes = routesData.routes
 
+  async function onBrowserSearch() {
+    try {
+      setBrowserBusy(true)
+      setBrowserStatus('running')
+      setBrowserInfo('Запущен поиск на сайтах...')
+      const job = await createBrowserSearchJob({
+        from: query.from,
+        to: query.to,
+        dateFrom: query.dateFrom,
+        dateTo: query.dateTo,
+        transport: query.transport,
+      })
+      const jobId = job?.job_id
+      setBrowserJobId(jobId)
+    } catch (e) {
+      setBrowserStatus('error')
+      setBrowserInfo(e.message || 'Не удалось запустить browser-поиск')
+      setBrowserBusy(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!browserJobId) return
+    let active = true
+
+    async function poll() {
+      try {
+        const status = await getBrowserSearchStatus(browserJobId)
+        if (!active) return
+        setBrowserStatus(status.status)
+        if (status.status === 'done') {
+          const payload = await getBrowserSearchResults(browserJobId)
+          if (!active) return
+          if (Array.isArray(payload?.routes) && payload.routes.length) {
+            setAllRoutes((prev) => combineRoutes(prev, payload.routes))
+            setBrowserInfo(`Найдено на сайтах: ${payload.routes.length}`)
+          } else {
+            setBrowserInfo('Browser-поиск завершён, новых маршрутов не найдено')
+          }
+          setBrowserBusy(false)
+          return
+        }
+
+        if (status.status === 'error' || status.status === 'timeout' || status.status === 'cancelled') {
+          setBrowserInfo(status.error_message || 'Browser-поиск завершился с ошибкой')
+          setBrowserBusy(false)
+          return
+        }
+      } catch (e) {
+        if (!active) return
+        setBrowserStatus('error')
+        setBrowserInfo(e.message || 'Ошибка при проверке статуса browser-поиска')
+        setBrowserBusy(false)
+        return
+      }
+
+      setTimeout(() => {
+        if (active) poll()
+      }, 2500)
+    }
+
+    poll()
+    return () => {
+      active = false
+    }
+  }, [browserJobId])
+
   return (
     <div className="grid gap-6">
       <div className="grid gap-2">
@@ -186,6 +258,13 @@ export function ResultsPage() {
       </Card>
 
       <Filters value={filters} onChange={setFilters} />
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" onClick={onBrowserSearch} disabled={browserBusy}>
+          {browserBusy ? 'Ищем на сайтах...' : 'Найти на сайтах'}
+        </Button>
+        {browserStatus ? <span className="text-xs text-white/80">Статус: {browserStatus}</span> : null}
+      </div>
+      {browserInfo ? <div className="text-xs text-white/80">{browserInfo}</div> : null}
       {warning ? <div className="text-xs text-amber-200">{warning}</div> : null}
       {fallbackInfo ? <div className="text-xs text-white/80">{fallbackInfo}</div> : null}
 

@@ -62,6 +62,8 @@ npm run lint     # ESLint
 - Старый файл `supabase_favorites_rls.sql` удалён — всё объединено в **`supabase/schema.sql`**.
 - Комбинированный поиск маршрутов работает так: сначала данные из `routes` в Supabase, затем live-догрузка из `VITE_EXTERNAL_ROUTES_URL` (если задан URL).
 - Дополнительно подключены открытые источники OSM/OSRM (геокодирование + построение маршрутов) — работают даже без `VITE_EXTERNAL_ROUTES_URL`, если `VITE_ENABLE_OSM_SOURCES=true`.
+- Интегрированы провайдеры: Яндекс Расписания, OSM Nominatim, OSRM, ЦБ РФ (курсы), Aviationstack free (оценочный авиа-слой).
+- Для каждого провайдера включено fail-safe поведение: ошибка логируется, но не блокирует общий поиск.
 
 ## Роли и admin
 
@@ -138,3 +140,12 @@ curl -X POST "https://ixlwzdjmyydazkqeveav.functions.supabase.co/ingest-routes"
 ```bash
 npx supabase functions invoke ingest-routes
 ```
+
+## Логирование запросов/ответов провайдеров
+
+- Логи включены в `src/data/providerLogger.js`.
+- Для каждого запроса пишутся события:
+  - `request` (куда пошли, с какими параметрами),
+  - `response` (успех и сколько элементов пришло),
+  - `error` (сообщение ошибки и payload).
+- Это логирование не прерывает пользовательский сценарий поиска.

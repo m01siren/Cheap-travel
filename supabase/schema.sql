@@ -250,6 +250,52 @@ create index if not exists idx_route_comments_author
   on public.route_comments(author_id);
 
 -- -----------------------------------------------------------------------------
+-- Browser search jobs and cache
+-- -----------------------------------------------------------------------------
+create table if not exists public.search_jobs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  status text not null default 'queued'
+    check (status in ('queued', 'running', 'done', 'error', 'cancelled', 'timeout')),
+  query jsonb not null,
+  sources text[] not null default '{}',
+  started_at timestamptz,
+  finished_at timestamptz,
+  error_message text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_search_jobs_user_created
+  on public.search_jobs(user_id, created_at desc);
+create index if not exists idx_search_jobs_status_created
+  on public.search_jobs(status, created_at);
+
+drop trigger if exists trg_search_jobs_updated_at on public.search_jobs;
+create trigger trg_search_jobs_updated_at
+before update on public.search_jobs
+for each row execute function public.set_updated_at();
+
+create table if not exists public.search_results_cache (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.search_jobs(id) on delete cascade,
+  route_id text not null,
+  provider text not null,
+  price numeric(10,2) not null,
+  currency text not null default 'RUB',
+  price_type text not null default 'estimated' check (price_type in ('exact', 'estimated')),
+  score numeric(12,2) not null default 0,
+  route jsonb not null,
+  fetched_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
+create index if not exists idx_search_results_job_score
+  on public.search_results_cache(job_id, score);
+create index if not exists idx_search_results_expires
+  on public.search_results_cache(expires_at);
+
+-- -----------------------------------------------------------------------------
 -- View: агрегат голосов (удобно для UI)
 -- -----------------------------------------------------------------------------
 create or replace view public.route_vote_stats as
@@ -272,6 +318,8 @@ alter table public.price_history enable row level security;
 alter table public.search_history enable row level security;
 alter table public.route_votes enable row level security;
 alter table public.route_comments enable row level security;
+alter table public.search_jobs enable row level security;
+alter table public.search_results_cache enable row level security;
 
 -- profiles
 drop policy if exists "profiles_select_all" on public.profiles;
@@ -451,6 +499,56 @@ drop policy if exists "route_comments_delete_own" on public.route_comments;
 create policy "route_comments_delete_own"
 on public.route_comments for delete to authenticated
 using (author_id = auth.uid() or public.is_admin());
+
+-- search_jobs
+drop policy if exists "search_jobs_select_own" on public.search_jobs;
+create policy "search_jobs_select_own"
+on public.search_jobs for select to authenticated
+using (user_id = auth.uid() or public.is_admin());
+
+drop policy if exists "search_jobs_insert_own" on public.search_jobs;
+create policy "search_jobs_insert_own"
+on public.search_jobs for insert to authenticated
+with check (user_id = auth.uid() or public.is_admin());
+
+drop policy if exists "search_jobs_update_own" on public.search_jobs;
+create policy "search_jobs_update_own"
+on public.search_jobs for update to authenticated
+using (user_id = auth.uid() or public.is_admin())
+with check (user_id = auth.uid() or public.is_admin());
+
+drop policy if exists "search_jobs_delete_own" on public.search_jobs;
+create policy "search_jobs_delete_own"
+on public.search_jobs for delete to authenticated
+using (user_id = auth.uid() or public.is_admin());
+
+-- search_results_cache
+drop policy if exists "search_results_select_owner" on public.search_results_cache;
+create policy "search_results_select_owner"
+on public.search_results_cache for select to authenticated
+using (
+  exists (
+    select 1
+    from public.search_jobs sj
+    where sj.id = search_results_cache.job_id
+      and (sj.user_id = auth.uid() or public.is_admin())
+  )
+);
+
+drop policy if exists "search_results_insert_service" on public.search_results_cache;
+create policy "search_results_insert_service"
+on public.search_results_cache for insert to service_role
+with check (true);
+
+drop policy if exists "search_results_update_service" on public.search_results_cache;
+create policy "search_results_update_service"
+on public.search_results_cache for update to service_role
+using (true) with check (true);
+
+drop policy if exists "search_results_delete_service" on public.search_results_cache;
+create policy "search_results_delete_service"
+on public.search_results_cache for delete to service_role
+using (true);
 
 -- =============================================================================
 -- Готово
