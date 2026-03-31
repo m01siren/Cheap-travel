@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 
+function getEmailRedirectTo() {
+  const envUrl = import.meta.env.VITE_AUTH_REDIRECT_URL
+  if (envUrl) return envUrl
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return undefined
+}
+
 export function useAuth() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -67,7 +76,13 @@ export function useAuth() {
   }
 
   async function signUp(email, password) {
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: getEmailRedirectTo(),
+      },
+    })
     if (error) throw new Error(error.message || 'Ошибка регистрации')
   }
 
