@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js'
+import { isUuid } from '../lib/validation.js'
 import { fetchExternalRoutes } from './externalRoutesApi.js'
 import { mergeAndRankRoutes, scoreRoute } from './routesAggregation.js'
 
@@ -69,14 +70,16 @@ export async function fetchRoutes() {
 }
 
 export async function fetchRouteById(id) {
+  if (!isUuid(String(id ?? ''))) return null
   const { data, error } = await supabase.from('routes').select('*').eq('id', id).maybeSingle()
   assertNoError(error, 'Не удалось загрузить маршрут')
   return data ? mapRoute(data) : null
 }
 
 export async function fetchRoutesByIds(ids) {
-  if (!ids.length) return []
-  const { data, error } = await supabase.from('routes').select('*').in('id', ids)
+  const clean = (ids || []).map(String).filter(isUuid)
+  if (!clean.length) return []
+  const { data, error } = await supabase.from('routes').select('*').in('id', clean)
   assertNoError(error, 'Не удалось загрузить избранные маршруты')
   return (data || []).map(mapRoute)
 }

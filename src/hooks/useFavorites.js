@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { isUuid } from '../lib/validation.js'
 import { useAuth } from './useAuth.js'
 
 export function useFavorites() {
@@ -54,6 +55,7 @@ export function useFavorites() {
 
   async function remove(id) {
     if (!user) throw new Error('Войдите, чтобы управлять избранным')
+    if (!isUuid(String(id ?? ''))) throw new Error('Некорректный идентификатор маршрута')
     const { error: deleteError } = await supabase
       .from('favorites')
       .delete()
@@ -65,6 +67,7 @@ export function useFavorites() {
 
   async function toggle(id) {
     if (!user) throw new Error('Войдите, чтобы сохранять маршруты')
+    if (!isUuid(String(id ?? ''))) throw new Error('Некорректный идентификатор маршрута')
 
     if (set.has(id)) {
       await remove(id)

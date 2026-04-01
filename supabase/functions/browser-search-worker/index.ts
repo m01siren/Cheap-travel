@@ -1,20 +1,21 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { runBrowserSearchJob } from '../_shared/browserSearch.ts'
-
-function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
+import { handleCorsPreflight, internalError, json, jsonCors } from '../_shared/httpJson.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 serve(async (req) => {
   try {
-    if (req.method !== 'POST') return json(405, { message: 'Method not allowed' })
+    if (req.method === 'OPTIONS') return handleCorsPreflight(req)
+    if (req.method !== 'POST') return jsonCors(req, 405, { message: 'Method not allowed' })
+
+    const workerSecret = Deno.env.get('BROWSER_SEARCH_WORKER_SECRET')
+    if (workerSecret) {
+      const h = req.headers.get('x-worker-secret') ?? ''
+      if (h !== workerSecret) return json(401, { message: 'Unauthorized' })
+    }
 
     const service = createClient(supabaseUrl, serviceRoleKey)
     const { data: jobs, error } = await service
@@ -24,7 +25,10 @@ serve(async (req) => {
       .order('created_at', { ascending: true })
       .limit(10)
 
-    if (error) return json(400, { message: error.message })
+    if (error) {
+      console.error('[browser-search-worker]', error)
+      return jsonCors(req, 400, { message: 'Не удалось получить очередь' })
+    }
     let processed = 0
 
     for (const job of jobs || []) {
@@ -36,9 +40,8 @@ serve(async (req) => {
       }
     }
 
-    return json(200, { ok: true, processed })
+    return jsonCors(req, 200, { ok: true, processed })
   } catch (e) {
-    return json(500, { message: e instanceof Error ? e.message : String(e) })
+    return internalError('browser-search-worker', e, req)
   }
 })
-

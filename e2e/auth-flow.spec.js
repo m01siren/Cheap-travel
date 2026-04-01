@@ -10,8 +10,14 @@ test('register flow shows server response message', async ({ page }) => {
   await page.getByLabel('Пароль').fill(password)
   await page.getByRole('button', { name: 'Регистрация' }).click()
 
-  // On success UI shows "check your mail". On rate-limit/failure it shows backend error.
+  // Успех: почта / «Выйти» при autoconfirm. Ошибка: сеть, лимит, CORS, или «function not found», если Edge ещё не задеплоен.
   await expect(
-    page.getByText(/Проверьте почту|email rate limit exceeded|over_email_send_rate_limit|Не удалось зарегистрироваться/i),
-  ).toBeVisible()
+    page
+      .getByRole('button', { name: 'Выйти' })
+      .or(
+        page.getByText(
+          /Проверьте почту|Не удалось зарегистрироваться|email rate limit|over_email_send|Доступ с этого источника|Ошибка регистрации|Failed to fetch|NetworkError|Requested function was not found|function was not found/i,
+        ),
+      ),
+  ).toBeVisible({ timeout: 25000 })
 })

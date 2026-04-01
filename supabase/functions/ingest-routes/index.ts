@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { internalError, json } from '../_shared/httpJson.ts'
 
 type RawRoute = {
   id?: string
@@ -13,13 +14,6 @@ type RawRoute = {
     durationMin?: number
     price?: number
   }>
-}
-
-function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 function normalizeMode(mode?: string) {
@@ -65,6 +59,17 @@ const externalRoutesUrl = Deno.env.get('EXTERNAL_ROUTES_URL') || ''
 serve(async (req) => {
   try {
     if (req.method !== 'POST') return json(405, { message: 'Method not allowed' })
+
+    const ingestSecret = Deno.env.get('INGEST_ROUTES_SECRET')
+    const provided = req.headers.get('x-ingest-secret') ?? ''
+    if (!ingestSecret) {
+      console.error('[ingest-routes] INGEST_ROUTES_SECRET is not set')
+      return json(503, { message: 'Сервис не настроен: задайте INGEST_ROUTES_SECRET' })
+    }
+    if (provided !== ingestSecret) {
+      return json(401, { message: 'Unauthorized' })
+    }
+
     if (!externalRoutesUrl) return json(400, { message: 'EXTERNAL_ROUTES_URL is not configured' })
 
     const service = createClient(supabaseUrl, serviceRoleKey)
@@ -92,7 +97,10 @@ serve(async (req) => {
         .eq('provider', route.provider)
         .maybeSingle()
 
-      if (findErr) return json(400, { message: findErr.message })
+      if (findErr) {
+        console.error('[ingest-routes] find', findErr)
+        return json(400, { message: 'Ошибка при поиске маршрута' })
+      }
 
       let routeId = existing?.id ?? null
       if (routeId) {
@@ -105,7 +113,10 @@ serve(async (req) => {
             status: 'published',
           })
           .eq('id', routeId)
-        if (updErr) return json(400, { message: updErr.message })
+        if (updErr) {
+          console.error('[ingest-routes] update', updErr)
+          return json(400, { message: 'Не удалось обновить маршрут' })
+        }
         updated += 1
       } else {
         const { data: created, error: insErr } = await service
@@ -113,7 +124,10 @@ serve(async (req) => {
           .insert(route)
           .select('id')
           .single()
-        if (insErr) return json(400, { message: insErr.message })
+        if (insErr) {
+          console.error('[ingest-routes] insert route', insErr)
+          return json(400, { message: 'Не удалось добавить маршрут' })
+        }
         routeId = created.id
         inserted += 1
       }
@@ -124,7 +138,10 @@ serve(async (req) => {
         currency: route.currency,
         source: route.provider,
       })
-      if (priceErr) return json(400, { message: priceErr.message })
+      if (priceErr) {
+        console.error('[ingest-routes] price_history', priceErr)
+        return json(400, { message: 'Не удалось записать историю цен' })
+      }
       priceRows += 1
     }
 
@@ -136,7 +153,7 @@ serve(async (req) => {
       total_external_rows: rows.length,
     })
   } catch (e) {
-    return json(500, { message: e instanceof Error ? e.message : String(e) })
+    return internalError('ingest-routes', e, req)
   }
 })
 

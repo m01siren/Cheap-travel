@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 
+/** В dev — прокси Vite на Edge Function; в prod — прямой URL functions/v1. */
+function authRequestUrl(kind) {
+  if (import.meta.env.DEV) {
+    return kind === 'login' ? '/api/auth/login' : '/api/auth/register'
+  }
+  const base = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') || ''
+  const name = kind === 'login' ? 'auth-login' : 'auth-register'
+  return `${base}/functions/v1/${name}`
+}
+
 function getEmailRedirectTo() {
   const envUrl = import.meta.env.VITE_AUTH_REDIRECT_URL
   if (envUrl) return envUrl
@@ -71,19 +81,65 @@ export function useAuth() {
   }, [user?.id])
 
   async function signIn(email, password) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const anon = import.meta.env.VITE_SUPABASE_ANON_KEY
+    const res = await fetch(authRequestUrl('login'), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${anon}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    })
+    const payload = await res.json().catch(() => ({}))
+    if (res.status === 429) {
+      throw new Error(
+        payload.message ||
+          'Слишком много попыток входа. Разрешено не более 10 за 15 минут. Подождите и попробуйте снова.',
+      )
+    }
+    if (!res.ok) {
+      throw new Error(payload.message || payload.msg || 'Ошибка входа')
+    }
+    const access_token = payload.access_token
+    const refresh_token = payload.refresh_token
+    if (!access_token || !refresh_token) {
+      throw new Error('Некорректный ответ сервера')
+    }
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token })
     if (error) throw new Error(error.message || 'Ошибка входа')
   }
 
   async function signUp(email, password) {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: getEmailRedirectTo(),
+    const anon = import.meta.env.VITE_SUPABASE_ANON_KEY
+    const res = await fetch(authRequestUrl('register'), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${anon}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        email,
+        password,
+        emailRedirectTo: getEmailRedirectTo(),
+      }),
     })
-    if (error) throw new Error(error.message || 'Ошибка регистрации')
+    const payload = await res.json().catch(() => ({}))
+    if (res.status === 429) {
+      throw new Error(
+        payload.message ||
+          'Слишком много попыток регистрации. Разрешено не более 10 за 15 минут. Подождите и попробуйте снова.',
+      )
+    }
+    if (!res.ok) {
+      throw new Error(payload.message || payload.msg || 'Ошибка регистрации')
+    }
+    if (payload.access_token && payload.refresh_token) {
+      const { error } = await supabase.auth.setSession({
+        access_token: payload.access_token,
+        refresh_token: payload.refresh_token,
+      })
+      if (error) throw new Error(error.message || 'Ошибка регистрации')
+    }
   }
 
   async function signOut() {

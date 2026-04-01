@@ -1,4 +1,11 @@
 import { supabase } from '../lib/supabase.js'
+import { isUuid } from '../lib/validation.js'
+
+function assertRouteId(routeId) {
+  if (!isUuid(String(routeId ?? ''))) {
+    throw new Error('Некорректный идентификатор маршрута')
+  }
+}
 
 function assertNoError(error, fallbackMessage) {
   if (!error) return
@@ -6,12 +13,14 @@ function assertNoError(error, fallbackMessage) {
 }
 
 export async function fetchVoteStats(routeId) {
+  assertRouteId(routeId)
   const { data, error } = await supabase.from('route_vote_stats').select('*').eq('route_id', routeId).maybeSingle()
   assertNoError(error, 'Не удалось загрузить рейтинг')
   return data || { likes_count: 0, dislikes_count: 0, score: 0 }
 }
 
 export async function fetchUserVote(routeId, userId) {
+  assertRouteId(routeId)
   if (!userId) return null
   const { data, error } = await supabase
     .from('route_votes')
@@ -24,6 +33,7 @@ export async function fetchUserVote(routeId, userId) {
 }
 
 export async function setVote(routeId, userId, vote) {
+  assertRouteId(routeId)
   if (!userId) throw new Error('Войдите, чтобы голосовать')
   const { error } = await supabase.from('route_votes').upsert(
     { route_id: routeId, user_id: userId, vote },
@@ -33,12 +43,14 @@ export async function setVote(routeId, userId, vote) {
 }
 
 export async function removeVote(routeId, userId) {
+  assertRouteId(routeId)
   if (!userId) return
   const { error } = await supabase.from('route_votes').delete().eq('route_id', routeId).eq('user_id', userId)
   assertNoError(error, 'Не удалось убрать голос')
 }
 
 export async function fetchComments(routeId) {
+  assertRouteId(routeId)
   const { data: rows, error } = await supabase
     .from('route_comments')
     .select('id, content, created_at, author_id')
@@ -61,6 +73,7 @@ export async function fetchComments(routeId) {
 }
 
 export async function addComment(routeId, authorId, content) {
+  assertRouteId(routeId)
   if (!authorId) throw new Error('Войдите, чтобы комментировать')
   const trimmed = String(content || '').trim()
   if (!trimmed) throw new Error('Введите текст комментария')
@@ -73,6 +86,7 @@ export async function addComment(routeId, authorId, content) {
 }
 
 export async function fetchPriceHistory(routeId, limit = 20) {
+  assertRouteId(routeId)
   const { data, error } = await supabase
     .from('price_history')
     .select('*')

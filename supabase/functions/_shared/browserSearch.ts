@@ -151,7 +151,8 @@ export async function runBrowserSearchJob(
           warnings.push('Не удалось определить коды населённых пунктов для Яндекс Расписаний')
         }
       } catch (e) {
-        warnings.push(`browser_yandex: ${e instanceof Error ? e.message : String(e)}`)
+        console.error('[browser_yandex]', e)
+        warnings.push('Источник browser_yandex временно недоступен')
       }
     }
 
@@ -200,12 +201,13 @@ export async function runBrowserSearchJob(
       })
       .eq('id', jobId)
   } catch (error) {
+    console.error('[runBrowserSearchJob]', jobId, error)
     await service
       .from('search_jobs')
       .update({
         status: 'error',
         finished_at: new Date().toISOString(),
-        error_message: error instanceof Error ? error.message : String(error),
+        error_message: 'Не удалось выполнить поиск',
       })
       .eq('id', jobId)
     throw error

@@ -15,6 +15,14 @@
 3. При пустой таблице `routes` можно выполнить **[`supabase/seed_example.sql`](supabase/seed_example.sql)** — тестовые маршруты.
 4. В **Authentication → Providers** включите **Email** (логин/пароль).
 5. В **Project Settings → API** скопируйте **Project URL** и **anon public** ключ.
+6. **Лимит входа/регистрации (10 попыток / 15 мин с IP):** в конце [`supabase/schema.sql`](supabase/schema.sql) добавлены таблица `auth_rate_limit_buckets` и функция `try_auth_rate_limit`. Если вы уже применяли схему раньше, выполните в **SQL Editor** только этот новый блок (или весь файл поверх — он идемпотентен там, где возможно).
+7. Задеплойте функции прокси авторизации (нужны те же секреты, что и у других Edge Functions: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`):
+   ```bash
+   npx supabase functions deploy auth-login
+   npx supabase functions deploy auth-register
+   ```
+   Фронт вызывает `POST .../functions/v1/auth-login` и `.../auth-register` (в dev через Vite прокси это же доступно как `POST /api/auth/login` и `POST /api/auth/register`). При превышении лимита ответ **429** с текстом на русском. Прямой вызов GoTrue API с браузера по-прежнему возможен технически и **не** считается этим лимитом; полная блокировка только через прокси на своём домене/WAF.
+8. **CORS для Edge Functions:** в secrets задайте `CORS_ALLOWED_ORIGINS` — список через запятую (например `https://мой-сайт.ru,http://localhost:5173`). Если не задано, разрешены только локальные origin `localhost` / `127.0.0.1` на портах 5173 и 4173. Заголовок `Access-Control-Allow-Origin` выставляется в **конкретный** origin запроса, не `*`.
 
 ## Переменные окружения
 
@@ -127,12 +135,14 @@ npx supabase link --project-ref ixlwzdjmyydazkqeveav
 npx supabase secrets set SUPABASE_URL=https://ixlwzdjmyydazkqeveav.supabase.co
 npx supabase secrets set EXTERNAL_ROUTES_URL=https://open-data-provider.example/routes
 npx supabase secrets set SUPABASE_SERVICE_ROLE_KEY=ваш_service_role_key
+npx supabase secrets set INGEST_ROUTES_SECRET=случайная_длинная_строка
 
 # 4) Деплой функции
 npx supabase functions deploy ingest-routes
 
-# 5) Ручной запуск (проверка)
-curl -X POST "https://ixlwzdjmyydazkqeveav.functions.supabase.co/ingest-routes"
+# 5) Ручной запуск (проверка; в заголовке тот же секрет, что в INGEST_ROUTES_SECRET)
+curl -X POST "https://ixlwzdjmyydazkqeveav.functions.supabase.co/ingest-routes" \
+  -H "x-ingest-secret: случайная_длинная_строка"
 ```
 
 Если хотите полностью без `curl`, можно вызвать через CLI:
