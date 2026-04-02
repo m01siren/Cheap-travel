@@ -19,9 +19,9 @@ function getEmailRedirectTo() {
     try {
       const parsed = new URL(envUrl)
       const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
-      // Для прода используем только https redirect_to (кроме localhost),
-      // иначе часть провайдеров/браузеров блокирует preflight.
-      if (parsed.protocol === 'https:' || isLocalhost) return parsed.origin
+      // Для production не передаём redirect_to вообще: используем Site URL из Supabase.
+      // Это устраняет preflight ошибки вида signup?redirect_to=http...
+      if (isLocalhost) return parsed.origin
     } catch {
       // ignored
     }
@@ -30,7 +30,7 @@ function getEmailRedirectTo() {
     try {
       const parsed = new URL(window.location.origin)
       const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
-      if (parsed.protocol === 'https:' || isLocalhost) return parsed.origin
+      if (isLocalhost) return parsed.origin
     } catch {
       // ignored
     }
