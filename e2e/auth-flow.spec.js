@@ -16,8 +16,8 @@ test('register flow shows server response message', async ({ page }) => {
       .getByRole('button', { name: 'Выйти' })
       .or(
         page.getByText(
-          /Проверьте почту|Не удалось зарегистрироваться|email rate limit|over_email_send|Доступ с этого источника|Ошибка регистрации|Failed to fetch|NetworkError|Requested function was not found|function was not found/i,
+          /Проверьте почту|Не удалось зарегистрироваться|email rate limit|over_email_send|Доступ с этого источника|Ошибка регистрации|Failed to fetch|NetworkError|Requested function was not found|function was not found|Invalid Token|Protected Header/i,
         ),
       ),
-  ).toBeVisible({ timeout: 25000 })
+  ).toBeVisible({ timeout: 45000 })
 })

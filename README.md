@@ -44,6 +44,22 @@ npm run dev
 
 Откройте в браузере адрес из терминала (обычно `http://localhost:5173`).
 
+## Деплой на Amvera (frontend)
+
+Проект готов к деплою через `Dockerfile` в корне репозитория.
+
+1. В Amvera создайте приложение из Git-репозитория.
+2. Выберите деплой через Dockerfile.
+3. В переменных окружения приложения задайте:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - остальные `VITE_*` из `.env.example` при необходимости.
+4. После первого деплоя добавьте URL вашего приложения Amvera в CORS:
+   - Supabase → Project Settings → Edge Functions → Secrets
+   - `CORS_ALLOWED_ORIGINS=https://ваш-amvera-домен`
+
+В контейнере включён SPA fallback (`try_files ... /index.html`), поэтому прямые переходы на маршруты React Router работают корректно.
+
 ### Другие команды
 
 ```bash

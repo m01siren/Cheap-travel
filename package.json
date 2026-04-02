@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "pretest:e2e": "node scripts/ensure-env.mjs",
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright show-report",
     "db:apply:auth-rate-limit": "node scripts/apply-auth-rate-limit.mjs",
