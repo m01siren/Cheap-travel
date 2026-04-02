@@ -1,14 +1,16 @@
 import { normalizeExternalRoute } from './routesAggregation.js'
 import { logProviderError, logProviderRequest, logProviderResponse } from './providerLogger.js'
 
-const EXTERNAL_ROUTES_URL = import.meta.env.VITE_EXTERNAL_ROUTES_URL || ''
-const ENABLE_OSM_SOURCES = String(import.meta.env.VITE_ENABLE_OSM_SOURCES ?? 'true') !== 'false'
-const ENABLE_YANDEX_RASP = String(import.meta.env.VITE_ENABLE_YANDEX_RASP ?? 'true') !== 'false'
-const ENABLE_AVIATIONSTACK = String(import.meta.env.VITE_ENABLE_AVIATIONSTACK ?? 'true') !== 'false'
-const ENABLE_CBR_RATES = String(import.meta.env.VITE_ENABLE_CBR_RATES ?? 'true') !== 'false'
+import { getEnv } from '../lib/env.js'
 
-const YANDEX_RASP_API_KEY = import.meta.env.VITE_YANDEX_RASP_API_KEY || ''
-const AVIATIONSTACK_API_KEY = import.meta.env.VITE_AVIATIONSTACK_API_KEY || ''
+const EXTERNAL_ROUTES_URL = getEnv('VITE_EXTERNAL_ROUTES_URL') || ''
+const ENABLE_OSM_SOURCES = String(getEnv('VITE_ENABLE_OSM_SOURCES', 'true')) !== 'false'
+const ENABLE_YANDEX_RASP = String(getEnv('VITE_ENABLE_YANDEX_RASP', 'true')) !== 'false'
+const ENABLE_AVIATIONSTACK = String(getEnv('VITE_ENABLE_AVIATIONSTACK', 'true')) !== 'false'
+const ENABLE_CBR_RATES = String(getEnv('VITE_ENABLE_CBR_RATES', 'true')) !== 'false'
+
+const YANDEX_RASP_API_KEY = getEnv('VITE_YANDEX_RASP_API_KEY') || ''
+const AVIATIONSTACK_API_KEY = getEnv('VITE_AVIATIONSTACK_API_KEY') || ''
 
 export const hasExternalRoutesSource =
   Boolean(EXTERNAL_ROUTES_URL) || ENABLE_OSM_SOURCES || ENABLE_YANDEX_RASP || ENABLE_AVIATIONSTACK

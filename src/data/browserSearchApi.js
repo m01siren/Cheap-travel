@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js'
+import { getEnv } from '../lib/env.js'
 
 async function getAccessToken() {
   const {
@@ -10,7 +11,7 @@ async function getAccessToken() {
 
 async function invokeGet(functionName, query) {
   const token = await getAccessToken()
-  const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`
+  const base = `${getEnv('VITE_SUPABASE_URL')}/functions/v1/${functionName}`
   const url = new URL(base)
   Object.entries(query || {}).forEach(([k, v]) => {
     if (v != null && v !== '') url.searchParams.set(k, String(v))
@@ -29,7 +30,7 @@ async function invokeGet(functionName, query) {
 
 export async function createBrowserSearchJob(query) {
   const token = await getAccessToken()
-  const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/browser-search-create`
+  const base = `${getEnv('VITE_SUPABASE_URL')}/functions/v1/browser-search-create`
   const response = await fetch(base, {
     method: 'POST',
     headers: {

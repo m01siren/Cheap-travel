@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { getEnv } from '../lib/env.js'
 
 /** В dev — прокси Vite на Edge Function; в prod — прямой URL functions/v1. */
 function authRequestUrl(kind) {
   if (import.meta.env.DEV) {
     return kind === 'login' ? '/api/auth/login' : '/api/auth/register'
   }
-  const base = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') || ''
+  const base = getEnv('VITE_SUPABASE_URL')?.replace(/\/$/, '') || ''
   const name = kind === 'login' ? 'auth-login' : 'auth-register'
   return `${base}/functions/v1/${name}`
 }
 
 function getEmailRedirectTo() {
-  const envUrl = import.meta.env.VITE_AUTH_REDIRECT_URL
+  const envUrl = getEnv('VITE_AUTH_REDIRECT_URL')
   if (envUrl) return envUrl
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin
@@ -81,7 +82,7 @@ export function useAuth() {
   }, [user?.id])
 
   async function signIn(email, password) {
-    const anon = import.meta.env.VITE_SUPABASE_ANON_KEY
+    const anon = getEnv('VITE_SUPABASE_ANON_KEY')
     const res = await fetch(authRequestUrl('login'), {
       method: 'POST',
       headers: {
@@ -110,7 +111,7 @@ export function useAuth() {
   }
 
   async function signUp(email, password) {
-    const anon = import.meta.env.VITE_SUPABASE_ANON_KEY
+    const anon = getEnv('VITE_SUPABASE_ANON_KEY')
     const res = await fetch(authRequestUrl('register'), {
       method: 'POST',
       headers: {
