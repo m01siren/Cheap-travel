@@ -15,9 +15,25 @@ function authRequestUrl(kind) {
 
 function getEmailRedirectTo() {
   const envUrl = getEnv('VITE_AUTH_REDIRECT_URL')
-  if (envUrl) return envUrl
+  if (envUrl) {
+    try {
+      const parsed = new URL(envUrl)
+      const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+      // Для прода используем только https redirect_to (кроме localhost),
+      // иначе часть провайдеров/браузеров блокирует preflight.
+      if (parsed.protocol === 'https:' || isLocalhost) return parsed.origin
+    } catch {
+      // ignored
+    }
+  }
   if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin
+    try {
+      const parsed = new URL(window.location.origin)
+      const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
+      if (parsed.protocol === 'https:' || isLocalhost) return parsed.origin
+    } catch {
+      // ignored
+    }
   }
   return undefined
 }
@@ -135,10 +151,11 @@ export function useAuth() {
 
   async function signUp(email, password) {
     if (!isEdgeAuthEnabled()) {
+      const redirectTo = getEmailRedirectTo()
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: getEmailRedirectTo() },
+        options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
       })
       if (error) throw new Error(mapAuthNetworkError(error))
       return
@@ -176,10 +193,11 @@ export function useAuth() {
       }
     } catch (e) {
       if (!isNetworkLikeError(e)) throw e
+      const redirectTo = getEmailRedirectTo()
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: getEmailRedirectTo() },
+        options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
       })
       if (error) throw new Error(mapAuthNetworkError(error))
     }
