@@ -51,33 +51,46 @@ export function ResultsPage() {
     let cancelled = false
 
     async function loadRoutes() {
-      try {
-        setLoading(true)
-        setError('')
-        setWarning('')
-        setFallbackInfo('')
-        const dbRoutes = await fetchRoutes()
-        if (!cancelled) setAllRoutes(dbRoutes)
+      setLoading(true)
+      setError('')
+      setWarning('')
+      setFallbackInfo('')
 
-        // Combined strategy: быстрый показ из БД + живая догрузка.
-        try {
-          const liveRoutes = await fetchRoutesLive(query)
-          if (!cancelled && liveRoutes.length) {
-            setAllRoutes((prev) => combineRoutes(prev, liveRoutes))
-          }
-          if (!cancelled && !liveRoutes.length && !hasExternalRoutesSource) {
-            setWarning('Внешний источник маршрутов не подключён. Показаны только маршруты из вашей базы.')
-          }
-        } catch {
-          if (!cancelled) {
-            setWarning('Показаны локальные маршруты. Внешний источник временно недоступен.')
-          }
-        }
+      let dbRoutes = []
+      let liveRoutes = []
+      let dbError = null
+      let liveError = null
+
+      try {
+        dbRoutes = await fetchRoutes()
       } catch (e) {
-        if (!cancelled) setError(e.message || 'Не удалось загрузить данные')
-      } finally {
-        if (!cancelled) setLoading(false)
+        dbError = e
       }
+
+      try {
+        liveRoutes = await fetchRoutesLive(query)
+      } catch (e) {
+        liveError = e
+      }
+
+      if (cancelled) return
+
+      const merged = combineRoutes(dbRoutes, liveRoutes)
+      setAllRoutes(merged)
+
+      if (dbError && liveError) {
+        setError('Не удалось загрузить маршруты: база и внешние источники временно недоступны.')
+      } else if (dbError && liveRoutes.length) {
+        setWarning('Маршруты из базы временно недоступны. Показаны только внешние источники.')
+      } else if (dbError && !liveRoutes.length) {
+        setWarning('Маршруты из базы временно недоступны.')
+      } else if (liveError) {
+        setWarning('Показаны локальные маршруты. Внешний источник временно недоступен.')
+      } else if (!liveRoutes.length && !hasExternalRoutesSource) {
+        setWarning('Внешний источник маршрутов не подключён. Показаны только маршруты из вашей базы.')
+      }
+
+      if (!cancelled) setLoading(false)
     }
 
     loadRoutes()
