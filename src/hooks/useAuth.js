@@ -14,6 +14,10 @@ function authRequestUrl(kind) {
 }
 
 function getEmailRedirectTo() {
+  const isLocalPage =
+    typeof window !== 'undefined' &&
+    (window.location?.hostname === 'localhost' || window.location?.hostname === '127.0.0.1')
+
   const envUrl = getEnv('VITE_AUTH_REDIRECT_URL')
   if (envUrl) {
     try {
@@ -21,7 +25,7 @@ function getEmailRedirectTo() {
       const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
       // Для production не передаём redirect_to вообще: используем Site URL из Supabase.
       // Это устраняет preflight ошибки вида signup?redirect_to=http...
-      if (isLocalhost) return parsed.origin
+      if (isLocalhost && isLocalPage) return parsed.origin
     } catch {
       // ignored
     }
@@ -30,7 +34,7 @@ function getEmailRedirectTo() {
     try {
       const parsed = new URL(window.location.origin)
       const isLocalhost = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1'
-      if (isLocalhost) return parsed.origin
+      if (isLocalhost && isLocalPage) return parsed.origin
     } catch {
       // ignored
     }
