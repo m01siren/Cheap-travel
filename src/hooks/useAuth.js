@@ -28,7 +28,7 @@ function isNetworkLikeError(error) {
 }
 
 function isEdgeAuthEnabled() {
-  return getEnv('VITE_USE_EDGE_AUTH', 'true') !== 'false'
+  return getEnv('VITE_USE_EDGE_AUTH', 'false') !== 'false'
 }
 
 export function useAuth() {
