@@ -22,7 +22,8 @@
    npx supabase functions deploy auth-register
    ```
    Фронт вызывает `POST .../functions/v1/auth-login` и `.../auth-register` (в dev через Vite прокси это же доступно как `POST /api/auth/login` и `POST /api/auth/register`). При превышении лимита ответ **429** с текстом на русском. Прямой вызов GoTrue API с браузера по-прежнему возможен технически и **не** считается этим лимитом; полная блокировка только через прокси на своём домене/WAF.
-8. **CORS для Edge Functions:** в secrets задайте `CORS_ALLOWED_ORIGINS` — список через запятую (например `https://мой-сайт.ru,http://localhost:5173`). Если не задано, разрешены только локальные origin `localhost` / `127.0.0.1` на портах 5173 и 4173. Заголовок `Access-Control-Allow-Origin` выставляется в **конкретный** origin запроса, не `*`.
+8. **CORS для Edge Functions:** в secrets задайте `CORS_ALLOWED_ORIGINS` — список через запятую (например `https://мой-сайт.ru`). К дефолтным `localhost`/`127.0.0.1` (порты 5173 и 4173) прод-ориджины **добавляются**, а не заменяют их — локальная разработка не ломается. Заголовок `Access-Control-Allow-Origin` выставляется в **конкретный** origin запроса, не `*`.
+9. **Authentication → URL Configuration:** в **Redirect URLs** добавьте тот же публичный URL сайта, что открываете в браузере (`https://…`), иначе браузер может блокировать запросы к `/auth/v1/signup` (в Network: failed preflight / Failed to fetch).
 
 ## Переменные окружения
 
@@ -56,7 +57,10 @@ npm run dev
    - остальные `VITE_*` из `.env.example` при необходимости.
 4. После первого деплоя добавьте URL вашего приложения Amvera в CORS:
    - Supabase → Project Settings → Edge Functions → Secrets
-   - `CORS_ALLOWED_ORIGINS=https://ваш-amvera-домен`
+   - `CORS_ALLOWED_ORIGINS=https://ваш-amvera-домен` (точный адрес из браузера, без слэша в конце)
+5. В тех же переменных Amvera задайте `VITE_AUTH_REDIRECT_URL=https://ваш-amvera-домен` (как в адресной строке).
+6. В Supabase → **Authentication → URL Configuration** добавьте этот URL в **Redirect URLs**.
+7. Если в Network видно ошибки на `auth-login` / `auth-register` (CORS), можно временно отключить прокси и ходить напрямую в Supabase Auth: `VITE_USE_EDGE_AUTH=false`. После этого снова задеплойте или перезапустите контейнер. Затем снова включите Edge и пропишите `CORS_ALLOWED_ORIGINS`, если нужен лимит попыток входа через прокси.
 
 В контейнере включён SPA fallback (`try_files ... /index.html`), поэтому прямые переходы на маршруты React Router работают корректно.
 

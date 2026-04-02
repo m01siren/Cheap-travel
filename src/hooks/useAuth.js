@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { getEnv } from '../lib/env.js'
+import { mapAuthNetworkError } from '../lib/authErrors.js'
 
 /** В dev — прокси Vite на Edge Function; в prod — прямой URL functions/v1. */
 function authRequestUrl(kind) {
@@ -24,6 +25,10 @@ function getEmailRedirectTo() {
 function isNetworkLikeError(error) {
   const message = String(error?.message || '').toLowerCase()
   return message.includes('failed to fetch') || message.includes('networkerror') || message.includes('fetch')
+}
+
+function isEdgeAuthEnabled() {
+  return getEnv('VITE_USE_EDGE_AUTH', 'true') !== 'false'
 }
 
 export function useAuth() {
@@ -87,6 +92,11 @@ export function useAuth() {
   }, [user?.id])
 
   async function signIn(email, password) {
+    if (!isEdgeAuthEnabled()) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw new Error(mapAuthNetworkError(error))
+      return
+    }
     try {
       const anon = getEnv('VITE_SUPABASE_ANON_KEY')
       const res = await fetch(authRequestUrl('login'), {
@@ -119,11 +129,20 @@ export function useAuth() {
       // пробуем стандартный Supabase Auth.
       if (!isNetworkLikeError(e)) throw e
       const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw new Error(error.message || 'Ошибка входа')
+      if (error) throw new Error(mapAuthNetworkError(error))
     }
   }
 
   async function signUp(email, password) {
+    if (!isEdgeAuthEnabled()) {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: getEmailRedirectTo() },
+      })
+      if (error) throw new Error(mapAuthNetworkError(error))
+      return
+    }
     try {
       const anon = getEnv('VITE_SUPABASE_ANON_KEY')
       const res = await fetch(authRequestUrl('register'), {
@@ -162,7 +181,7 @@ export function useAuth() {
         password,
         options: { emailRedirectTo: getEmailRedirectTo() },
       })
-      if (error) throw new Error(error.message || 'Ошибка регистрации')
+      if (error) throw new Error(mapAuthNetworkError(error))
     }
   }
 

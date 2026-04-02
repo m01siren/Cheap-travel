@@ -8,8 +8,10 @@ const DEFAULT_ALLOWED_ORIGINS = [
 
 export function getAllowedOrigins(): string[] {
   const raw = Deno.env.get('CORS_ALLOWED_ORIGINS')?.trim()
-  if (!raw) return DEFAULT_ALLOWED_ORIGINS
-  return raw.split(',').map((s) => s.trim()).filter(Boolean)
+  const fromEnv = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : []
+  // Если заданы прод-ориджины, не убираем localhost — иначе ломается локальная разработка.
+  const merged = [...DEFAULT_ALLOWED_ORIGINS, ...fromEnv]
+  return [...new Set(merged)]
 }
 
 /**

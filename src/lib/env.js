@@ -6,10 +6,10 @@ function getRuntimeConfig() {
 export function getEnv(name, fallback = '') {
   const runtime = getRuntimeConfig()
   const runtimeValue = runtime[name]
-  if (runtimeValue != null && String(runtimeValue) !== '') return String(runtimeValue)
+  if (runtimeValue != null && String(runtimeValue).trim() !== '') return String(runtimeValue).trim()
 
   const buildTimeValue = import.meta.env?.[name]
-  if (buildTimeValue != null && String(buildTimeValue) !== '') return String(buildTimeValue)
+  if (buildTimeValue != null && String(buildTimeValue).trim() !== '') return String(buildTimeValue).trim()
 
   return fallback
 }
