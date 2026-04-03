@@ -6,6 +6,9 @@ cd "$HTML_DIR"
 # Только цифры — безопасно для подстановки в sed
 METRIKA_ID=$(printf '%s' "${VITE_YANDEX_METRIKA_ID:-}" | tr -cd '0-9')
 
+# В логах Amvera: «Просмотр логов» — видно, видит ли контейнер переменную «Запуск»
+echo "[docker-entrypoint] AMVERA=${AMVERA:-} VITE_YANDEX_METRIKA_ID length=${#VITE_YANDEX_METRIKA_ID} digits=${METRIKA_ID:-empty}" >&2
+
 if [ -f env-config.template.js ]; then
   envsubst < env-config.template.js > env-config.js
 fi

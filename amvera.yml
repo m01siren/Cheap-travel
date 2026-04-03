@@ -1,0 +1,11 @@
+# Явная команда запуска: иначе Amvera может подставить `nginx` и пропустить
+# scripts/docker-entrypoint.sh (подстановка Метрики в index.html и env-config.js).
+meta:
+  environment: docker
+
+build:
+  dockerfile: Dockerfile
+
+run:
+  command: /docker-entrypoint.sh
+  containerPort: 80
