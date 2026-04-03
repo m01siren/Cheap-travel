@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Header } from './components/common.jsx'
+import { YandexMetrika } from './components/YandexMetrika.jsx'
 import { FavoritesPage } from './pages/Favorites.jsx'
 import { HomePage } from './pages/Home.jsx'
 import { ResultsPage } from './pages/Results.jsx'
@@ -9,6 +10,7 @@ import { SUPABASE_CONFIG_ERROR } from './lib/supabase.js'
 function App() {
   return (
     <div className="min-h-screen text-white">
+      <YandexMetrika />
       <Header />
       <main className="mx-auto w-full max-w-5xl px-4 py-6">
         {SUPABASE_CONFIG_ERROR ? (

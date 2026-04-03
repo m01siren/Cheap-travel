@@ -7,8 +7,21 @@ export default defineConfig(({ mode }) => {
   const supabaseUrl = env.VITE_SUPABASE_URL || ''
   const host = supabaseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
 
+  const yandexMetrikaId = (env.VITE_YANDEX_METRIKA_ID || '').trim()
+
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'inject-yandex-metrika-meta',
+        transformIndexHtml(html) {
+          return html.replace(
+            /(<meta\s+name="yandex-metrika-counter"\s+content=")[^"]*("\s*\/?>)/,
+            `$1${yandexMetrikaId}$2`,
+          )
+        },
+      },
+    ],
     server: {
       proxy: host
         ? {
