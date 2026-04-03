@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getClientIp } from '../_shared/clientIp.ts'
+import { finishRequestLog, logError, logEvent, startRequestLog } from '../_shared/log.ts'
 import {
   handleCorsPreflight,
   internalError,
@@ -17,14 +18,21 @@ const MSG_429 =
   'Слишком много попыток входа. Разрешено не более 10 за 15 минут. Подождите и попробуйте снова.'
 
 serve(async (req) => {
+  const reqLog = startRequestLog('auth-login', req)
   if (req.method === 'OPTIONS') {
-    return handleCorsPreflight(req)
+    const res = handleCorsPreflight(req)
+    finishRequestLog(reqLog, res.status)
+    return res
   }
   if (req.method !== 'POST') {
-    return jsonCors(req, 405, { message: 'Method not allowed' })
+    const res = jsonCors(req, 405, { message: 'Method not allowed' })
+    finishRequestLog(reqLog, res.status)
+    return res
   }
   if (isOriginForbidden(req)) {
-    return json(403, { message: 'Доступ с этого источника запрещён' })
+    const res = json(403, { message: 'Доступ с этого источника запрещён' })
+    finishRequestLog(reqLog, res.status)
+    return res
   }
 
   try {
@@ -35,29 +43,38 @@ serve(async (req) => {
     const { data: rl, error: rlErr } = await service.rpc('try_auth_rate_limit', { p_bucket: bucket })
 
     if (rlErr) {
-      console.error('[auth-login] rate limit rpc', rlErr)
-      return jsonCors(req, 500, { message: 'Не удалось проверить лимит запросов' })
+      logError('auth-login', rlErr, { stage: 'rate_limit_rpc' }, reqLog.id)
+      const res = jsonCors(req, 500, { message: 'Не удалось проверить лимит запросов' })
+      finishRequestLog(reqLog, res.status)
+      return res
     }
 
     const allowed = rl && typeof rl === 'object' && (rl as { allowed?: boolean }).allowed === true
     if (!allowed) {
       const retry = (rl as { retry_after_seconds?: number })?.retry_after_seconds ?? 900
-      return jsonCors(req, 429, { message: MSG_429, retry_after_seconds: retry }, {
+      const res = jsonCors(req, 429, { message: MSG_429, retry_after_seconds: retry }, {
         'Retry-After': String(retry),
       })
+      finishRequestLog(reqLog, res.status)
+      return res
     }
 
     let body: { email?: string; password?: string }
     try {
       body = await req.json()
-    } catch {
-      return jsonCors(req, 400, { message: 'Некорректный JSON' })
+    } catch (e) {
+      logError('auth-login', e, { stage: 'parse_body' }, reqLog.id)
+      const res = jsonCors(req, 400, { message: 'Некорректный JSON' })
+      finishRequestLog(reqLog, res.status)
+      return res
     }
 
     const email = String(body?.email ?? '').trim()
     const password = String(body?.password ?? '')
     if (!email || !password) {
-      return jsonCors(req, 400, { message: 'Укажите email и пароль' })
+      const res = jsonCors(req, 400, { message: 'Укажите email и пароль' })
+      finishRequestLog(reqLog, res.status)
+      return res
     }
 
     const authRes = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
@@ -80,11 +97,19 @@ serve(async (req) => {
           : typeof authJson === 'object' && authJson !== null && 'message' in authJson
             ? String((authJson as { message?: string }).message)
             : 'Ошибка входа'
-      return jsonCors(req, authRes.status, { message: msg })
+      const res = jsonCors(req, authRes.status, { message: msg })
+      finishRequestLog(reqLog, res.status)
+      return res
     }
 
-    return jsonCors(req, 200, authJson)
+    logEvent('auth-login', 'login_success', { user_email: email }, reqLog.id)
+    const res = jsonCors(req, 200, authJson)
+    finishRequestLog(reqLog, res.status)
+    return res
   } catch (e) {
-    return internalError('auth-login', e, req)
+    logError('auth-login', e, undefined, reqLog.id)
+    const res = internalError('auth-login', e, req)
+    finishRequestLog(reqLog, res.status)
+    return res
   }
 })
